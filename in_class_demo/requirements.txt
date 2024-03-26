@@ -1,0 +1,2 @@
+pycodestyle==2.11.1
+pymodbus==3.6.6
