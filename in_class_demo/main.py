@@ -12,8 +12,8 @@ class PLC_Tag():
 def connect_to_plc():
     print("Attempting to connect to PLC...")
     client = ModbusTcpClient('192.168.0.10', port='502')
-    client.connect()
-    print("Connection Status: ", client)
+    status = client.connect()
+    print("Connection Status: ", status, "to", client)
     return client
 
 
@@ -21,24 +21,25 @@ def disconnect_from_click_plc(client):
     print("disconnecting from client")
     client.close()
 
-def pulse_stepper_motor(client):
-    # create motor pulse object
-    pulse_the_stepper_motor = PLC_Tag("pulse_the_stepper_motor", 16390, None)
+
+def pulse_stepper_motor(client, pulse_obj_address):
+
     # turn on stepper motor pulse coil 16390
-    write_modbus_coils(client, pulse_the_stepper_motor.modbus_address, True)
+    write_modbus_coils(client, pulse_obj_address, True)
     # wait for a certain amount of time
-    time.sleep(.03)
+    time.sleep(.01)
     # turn off stepper motor pulse coil 16390
-    write_modbus_coils(client, pulse_the_stepper_motor.modbus_address, False)
+    write_modbus_coils(client, pulse_obj_address, False)
     # wait for a certain amount of time
-    time.sleep(.03)
+    time.sleep(.01)
+
 
 def write_modbus_coils(client, coil_num, bool_val):
     result = None
     coil_num = (coil_num - 1)
     # pymodbus built in write coil function
     result = client.write_coil(coil_num, bool_val)
-    print("Writing to coil: ", coil_num, "Value: ", result)
+    # print("Writing to coil: ", coil_num, "Value: ", result)
 
     return result
 
@@ -57,10 +58,13 @@ def read_modbus_coils(client, coil_address, coil_range = 1):
 
 def main():
     #client object to connect to PLC
+    count = 0
     client = connect_to_plc()
     # read the auto selector switch input
     selector_switch_in_auto = PLC_Tag("selector switch in auto", 16385, None)
     selector_switch_in_hand = PLC_Tag("selector switch in hand", 16386, None)
+    # create motor pulse object
+    pulse_the_stepper_motor = PLC_Tag("pulse_the_stepper_motor", 16390, None)
     estop = PLC_Tag("E-Stop", 16387, None)
 
     # Stepper Motor Objects
@@ -74,9 +78,10 @@ def main():
         selector_switch_list = read_modbus_coils(client, 16385, 3)
         # read our stepper motor direction and store in the
         # object's .value attribute
+        # this is where the direction bit is set
         stepper_motor_direction.value = read_modbus_coils(client, 
                                             stepper_motor_direction.modbus_address,
-                                            number_of_coils = 1 
+                                            1 
                                             )[0]
 
         # print(selector_switch_list)
@@ -84,22 +89,50 @@ def main():
         selector_switch_in_hand.value = selector_switch_list[1]
         estop.value = selector_switch_list[2]
 
+        # print("E-Stop Value: ", estop.value)
+
+        if (estop.value is True):
+            selector_switch_in_auto.value = False
+            selector_switch_in_hand.value = False
+            print("Alarm: E-Stop is pressed!")
+        
+        if (selector_switch_in_hand.value is True):
+            print("Hand Mode On")
+            write_modbus_coils(client, selector_switch_in_hand.modbus_address, selector_switch_in_hand.value)
+            # print("In hand mode ")
+
+        if (count == 200):
+            # print("Inside the count == 10 if statement")
+            # print("Stepper Direction Val: ", stepper_motor_direction.value)
+            stepper_motor_direction.value = not stepper_motor_direction.value
+            count = 0
+            write_modbus_coils(client, stepper_motor_direction.modbus_address, stepper_motor_direction.value)
+            # print("Stepper Direction Val: ", stepper_motor_direction.value)
+
+        if (selector_switch_in_auto.value is True and estop.value is False):
+            print("Auto Mode ON: Stepper Motor In Operation")
+            pulse_stepper_motor(client, pulse_the_stepper_motor.modbus_address)
+            count = (count + 1)
+            # print("Count: ", count)
+                           
         # Debugging print statements
-        print("----------------------------------")
-        print(selector_switch_in_auto.name, ":", selector_switch_in_auto.value)
-        print(selector_switch_in_hand.name, ":", selector_switch_in_hand.value)
-        print(estop.name, ":", estop.value)
-        print("-")
-        print(stepper_motor_direction.name, ":", stepper_motor_direction.value)
-        print("----------------------------------")
+        # print("----------------------------------")
+        # print(selector_switch_in_auto.name, ":", selector_switch_in_auto.value)
+        # print(selector_switch_in_hand.name, ":", selector_switch_in_hand.value)
+        # print(estop.name, ":", estop.value)
+        # print("-")
+        # print(stepper_motor_direction.name, ":", stepper_motor_direction.value)
+        # print("----------------------------------")
+
 
         # test our PLCTag class works
-        stepper_motor_direction.value = not stepper_motor_direction.value
-        write_modbus_coils(client, 
-                           stepper_motor_direction.modbus_address, 
-                           stepper_motor_direction.value
-                           )
-        time.sleep(1)
+        # here is where the direction bit is changed
+        # stepper_motor_direction.value = not stepper_motor_direction.value
+        # write_modbus_coils(client, 
+        #                    stepper_motor_direction.modbus_address, 
+        #                    stepper_motor_direction.value
+        #                    )
+        #   time.sleep(0.5)
         # print(selector_switch_in_auto.name)
         # print(selector_switch_in_auto.modbus_address)
         # print(selector_switch_in_auto.value)
