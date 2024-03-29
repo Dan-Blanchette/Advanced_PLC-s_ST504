@@ -1,3 +1,16 @@
+# Author: Dan Blanchette
+# Date: March 28th 2024
+'''
+This program will control and oscillate a stepper motor 
+direction bit between forward and backward rotation in 
+auto mode 200 pulses. The program will not run when the 
+E-stop is pressed and will resume from the last position 
+it was in and resumes its directional motion. This 
+implementation uses the Pymodbus module to communicate with
+a Click PLC and run the stepper motor, direction module,
+and update the HMI via Modbus coils.
+'''
+
 import time
 from pymodbus.client import ModbusTcpClient
 
